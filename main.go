@@ -37,12 +37,12 @@ func init() {
 	g.TiledMap = mapJson
 	g.Sprite = &entities.Sprite{
 		Img: spriteImg,
-		X:   16.0,
-		Y:   112.0,
+		X:   16,
+		Y:   112,
 	}
 	g.Camera = &entities.Camera{
-		X: 16.0,
-		Y: 112.0,
+		X: 2,
+		Y: 8,
 	}
 
 }
@@ -63,23 +63,30 @@ func NewGame() *Game {
 func (g *Game) Update() error {
 	// Player movement with arrow keys
 	if ebiten.IsKeyPressed(ebiten.KeyLeft) {
-		if g.Sprite.X <= 0 {
+		if g.Sprite.X < 2 {
 			return nil
 		}
 		g.Sprite.X -= 2
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyRight) {
-		if g.Sprite.X >= screenWidth {
-			fmt.Println("x", g.Sprite.X)
+		if g.Sprite.X >= screenWidth-tileSize {
 			return nil
 		}
-		g.Sprite.X += 2
+		g.Sprite.X += 1
+		fmt.Println("x	", g.Sprite.X)
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyUp) {
-		g.Sprite.Y -= 2
+		if g.Sprite.Y < 2 {
+			return nil
+		}
+		g.Sprite.Y -= 1
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyDown) {
-		g.Sprite.Y += 2
+		if g.Sprite.Y >= screenHeight-tileSize {
+			return nil
+		}
+		g.Sprite.Y += 1
+		fmt.Println("y	", g.Sprite.Y)
 	}
 	g.Camera.FollowTarget(g.Sprite.X, g.Sprite.Y, screenWidth, screenHeight)
 	g.Camera.Constrain(20*16, 10*16, screenWidth, screenHeight)
