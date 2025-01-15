@@ -8,8 +8,8 @@ type Camera struct {
 }
 
 func (c *Camera) FollowTarget(targetX, targetY, screenWidth, screenHeight float64) {
-	c.X = -targetX + screenWidth/2
-	c.Y = -targetY + screenHeight/2
+	c.X = targetX - screenWidth/4
+	c.Y = targetY - screenHeight/2
 }
 func (c *Camera) Constrain(mapWidth, mapHeight, screenWidth, screenHeight float64) {
 	c.X = math.Max(c.X, 0)

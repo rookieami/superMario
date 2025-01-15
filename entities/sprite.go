@@ -5,7 +5,10 @@ import (
 )
 
 type Sprite struct {
-	Img *ebiten.Image
-	X   float64
-	Y   float64
+	Img       *ebiten.Image
+	X         float64
+	Y         float64
+	VX        float64
+	JumpState uint
+	IsLeft    bool
 }

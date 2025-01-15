@@ -6,15 +6,17 @@ import (
 	"fmt"
 	"image"
 	"log"
+	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 const (
-	screenWidth  = 160
-	screenHeight = 160
-	tileSize     = 16
+	tileSize  = 16
+	gravity   = 0.5
+	jumpSpeed = 8
 )
 
 var g *Game
@@ -33,25 +35,34 @@ func init() {
 		log.Fatal(err)
 	}
 	g = NewGame()
+	g.screenWidth = 320
+	g.screenHeight = 160
 	g.FloorImg = floorImg
 	g.TiledMap = mapJson
 	g.Sprite = &entities.Sprite{
-		Img: spriteImg,
-		X:   16,
-		Y:   112,
+		Img:       spriteImg,
+		X:         16,
+		Y:         112,
+		VX:        16,
+		JumpState: 0,
 	}
 	g.Camera = &entities.Camera{
-		X: 2,
-		Y: 8,
+		X: g.Sprite.X - float64(g.screenWidth/3),
+		Y: g.Sprite.Y - float64(g.screenHeight/2),
 	}
-
+	// 约束相机位置
+	mapWidth := float64(g.TiledMap.Width * tileSize)
+	mapHeight := float64(g.TiledMap.Height * tileSize)
+	g.Camera.Constrain(mapWidth, mapHeight, float64(g.screenWidth), float64(g.screenHeight))
 }
 
 type Game struct {
-	TiledMap *common.TileMap
-	FloorImg *ebiten.Image
-	Sprite   *entities.Sprite
-	Camera   *entities.Camera
+	TiledMap     *common.TileMap
+	FloorImg     *ebiten.Image
+	Sprite       *entities.Sprite
+	Camera       *entities.Camera
+	screenWidth  int
+	screenHeight int
 }
 
 func NewGame() *Game {
@@ -61,36 +72,107 @@ func NewGame() *Game {
 // Update proceeds the game state.
 // Update is called every tick (1/60 [s] by default).
 func (g *Game) Update() error {
-	// Player movement with arrow keys
-	if ebiten.IsKeyPressed(ebiten.KeyLeft) {
-		if g.Sprite.X < 2 {
+	spriteSpeed := 1
+	if g.Sprite.JumpState > 1 {
+		spriteSpeed = 2
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyLeft) {
+		if g.Sprite.VX <= 0 {
 			return nil
 		}
-		g.Sprite.X -= 2
+		g.Sprite.VX -= float64(spriteSpeed * jumpSpeed)
+		g.Sprite.IsLeft = true
 	}
-	if ebiten.IsKeyPressed(ebiten.KeyRight) {
-		if g.Sprite.X >= screenWidth-tileSize {
+	if inpututil.IsKeyJustPressed(ebiten.KeyRight) {
+		if g.Sprite.VX >= float64(g.TiledMap.Width-1)*tileSize {
 			return nil
 		}
-		g.Sprite.X += 1
-		fmt.Println("x	", g.Sprite.X)
+		g.Sprite.VX += float64(spriteSpeed * jumpSpeed)
+		if g.Sprite.IsLeft {
+			g.Sprite.IsLeft = false
+		}
 	}
-	if ebiten.IsKeyPressed(ebiten.KeyUp) {
+	if (g.Sprite.JumpState < 2) && inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 		if g.Sprite.Y < 2 {
 			return nil
 		}
-		g.Sprite.Y -= 1
+		fmt.Println("开始跳跃")
+		fmt.Println("--------")
+		g.Sprite.Y -= jumpSpeed * 2
+		g.Sprite.JumpState += 1
 	}
-	if ebiten.IsKeyPressed(ebiten.KeyDown) {
-		if g.Sprite.Y >= screenHeight-tileSize {
-			return nil
+	//计算当前帧位置
+	if g.Sprite.X != g.Sprite.VX {
+		if g.Sprite.IsLeft {
+			//  <-
+			g.Sprite.X -= jumpSpeed
+		} else {
+			//  ->
+			g.Sprite.X += jumpSpeed
 		}
-		g.Sprite.Y += 1
-		fmt.Println("y	", g.Sprite.Y)
 	}
-	g.Camera.FollowTarget(g.Sprite.X, g.Sprite.Y, screenWidth, screenHeight)
-	g.Camera.Constrain(20*16, 10*16, screenWidth, screenHeight)
+	if g.Sprite.JumpState != 0 {
+		g.Sprite.Y += gravity //模拟重力
+	}
+	// 碰撞检测
+	g.checkCollision()
+	g.Camera.FollowTarget(g.Sprite.X, g.Sprite.Y, float64(g.screenWidth), float64(g.screenHeight))
+	// 约束相机位置
+	// 跟踪角色
+	mapWidth := float64(g.TiledMap.Width * tileSize)
+	mapHeight := float64(g.TiledMap.Height * tileSize)
+	g.Camera.Constrain(mapWidth, mapHeight, float64(g.screenWidth), float64(g.screenHeight))
+
 	return nil
+}
+
+// checkCollision 检测角色与地图之间的碰撞
+func (g *Game) checkCollision() {
+	// 获取角色的边界框
+	spriteRect := image.Rect(int(g.Sprite.X), int(g.Sprite.Y), int(g.Sprite.X)+16, int(g.Sprite.Y)+16)
+
+	// 遍历地图的每个瓦片
+	for _, layer := range g.TiledMap.Layers {
+		for y := 0; y < g.TiledMap.Height; y++ {
+			for x := 0; x < g.TiledMap.Width; x++ {
+				index := y*g.TiledMap.Width + x
+				id := layer.Data[index]
+				if id == 0 {
+					continue
+				}
+
+				// 获取瓦片的边界框
+				tileRect := image.Rect(x*tileSize, y*tileSize, (x+1)*tileSize, (y+1)*tileSize)
+
+				// 检测角色与瓦片是否相交
+				if spriteRect.Overlaps(tileRect) {
+					// 处理碰撞
+					if spriteRect.Min.Y < tileRect.Max.Y && spriteRect.Max.Y > tileRect.Min.Y {
+						if g.Sprite.VX < 0 {
+							// 左侧碰撞
+							g.Sprite.X = float64(tileRect.Max.X)
+						} else if g.Sprite.VX > 0 {
+							// 右侧碰撞
+							g.Sprite.X = float64(tileRect.Min.X) - 16
+						}
+					}
+					if spriteRect.Min.X < tileRect.Max.X && spriteRect.Max.X > tileRect.Min.X {
+						if g.Sprite.Y < tileRect.Max.Y && g.Sprite.Y > tileRect.Min.Y {
+							// 下方碰撞（地面）
+							g.Sprite.Y = float64(tileRect.Max.Y)
+							g.Sprite.JumpState = 0
+							g.Sprite.OnGround = true
+						} else if g.Sprite.Y+16 > tileRect.Min.Y && g.Sprite.Y+16 < tileRect.Max.Y {
+							// 上方碰撞（头部）
+							g.Sprite.Y = float64(tileRect.Min.Y) - 16
+							g.Sprite.JumpState = 0
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 // Draw draws the game screen.
@@ -100,27 +182,47 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	tileXCount := g.FloorImg.Bounds().Dx() / tileSize
 	xSpacing := 1
 	ySpacing := 1
+
+	// 计算屏幕可见区域的瓦片范围
+	startX := int(g.Camera.X) / tileSize
+	startY := int(g.Camera.Y) / tileSize
+	endX := startX + g.screenWidth/tileSize + 1
+	endY := startY + g.screenHeight/tileSize + 1
+
+	// 计算缩放比例
+	scaleX := float64(g.screenWidth) / float64(g.TiledMap.Width*tileSize)
+	scaleY := float64(g.screenHeight) / float64(g.TiledMap.Height*tileSize)
+	scale := math.Min(scaleX, scaleY)
+	opts.GeoM.Scale(scale, scale)
+
 	for _, layer := range g.TiledMap.Layers {
-		for index, id := range layer.Data {
-			x := index % layer.Width
-			y := index / layer.Width
-			x *= tileSize
-			y *= tileSize
+		for y := startY; y < endY; y++ {
+			for x := startX; x < endX; x++ {
+				index := y*layer.Width + x
+				if index >= len(layer.Data) {
+					continue
+				}
+				id := layer.Data[index]
+				if id == 0 {
+					continue
+				}
 
-			opts.GeoM.Translate(float64(x), float64(y))
-			// 计算瓦片坐标
-			srcX := ((id-1)%tileXCount)*tileSize + ((id-1)%tileXCount)*xSpacing
-			srcY := ((id-1)/tileXCount)*tileSize + ((id-1)/tileXCount)*ySpacing
+				srcX := ((id-1)%tileXCount)*tileSize + ((id-1)%tileXCount)*xSpacing
+				srcY := ((id-1)/tileXCount)*tileSize + ((id-1)/tileXCount)*ySpacing
 
-			screen.DrawImage(
-				g.FloorImg.SubImage(
-					image.Rect(srcX, srcY, srcX+tileSize, srcY+tileSize)).(*ebiten.Image),
-				&opts,
-			)
-			opts.GeoM.Reset()
+				opts.GeoM.Translate(float64(x*tileSize)-g.Camera.X, float64(y*tileSize)-g.Camera.Y)
+				screen.DrawImage(
+					g.FloorImg.SubImage(
+						image.Rect(srcX, srcY, srcX+tileSize, srcY+tileSize)).(*ebiten.Image),
+					&opts,
+				)
+				opts.GeoM.Reset()
+				opts.GeoM.Scale(scale, scale)
+			}
 		}
 	}
-	opts.GeoM.Translate(g.Sprite.X, g.Sprite.Y)
+	opts.GeoM.Translate(g.Sprite.X-g.Camera.X, g.Sprite.Y-g.Camera.Y)
+
 	screen.DrawImage(
 		g.Sprite.Img.SubImage(
 			image.Rect(0, 0, 16, 16),
@@ -133,12 +235,14 @@ func (g *Game) Draw(screen *ebiten.Image) {
 // Layout takes the outside size (e.g., the window size) and returns the (logical) screen size.
 // If you don't have to adjust the screen size with the outside size, just return a fixed size.
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return screenWidth, screenHeight
+	return g.screenWidth, g.screenHeight
+
 }
 func main() {
-	ebiten.SetWindowSize(screenWidth*2, screenHeight*2)
+	ebiten.SetWindowSize(g.screenWidth, g.screenHeight)
 	ebiten.SetWindowTitle("SuperMario")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
+
 	if err := ebiten.RunGame(g); err != nil {
 		log.Fatal(err)
 	}
