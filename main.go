@@ -1,16 +1,18 @@
 package main
 
 import (
-	"SuperMarioBros/common"
 	"SuperMarioBros/entities"
 	"fmt"
 	"image"
+	"image/color"
 	"log"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/vector"
+	"github.com/lafriks/go-tiled"
 )
 
 const (
@@ -22,14 +24,15 @@ const (
 var g *Game
 
 func init() {
+	gameMap, err := tiled.LoadFile("resource/map/word1.tmx")
+	if err != nil {
+		log.Fatal(err)
+	}
 	floorImg, _, err := ebitenutil.NewImageFromFile("resource/tileset/SMB-Tiles.png")
 	if err != nil {
 		log.Fatal(err)
 	}
-	mapJson, err := common.LoadConfig("resource/map/word1.tmj")
-	if err != nil {
-		log.Fatal(err)
-	}
+
 	spriteImg, _, err := ebitenutil.NewImageFromFile("resource/img/ninja.png")
 	if err != nil {
 		log.Fatal(err)
@@ -38,7 +41,7 @@ func init() {
 	g.screenWidth = 320
 	g.screenHeight = 160
 	g.FloorImg = floorImg
-	g.TiledMap = mapJson
+	g.TiledMap = gameMap
 	g.Sprite = &entities.Sprite{
 		Img:       spriteImg,
 		X:         16,
@@ -57,7 +60,7 @@ func init() {
 }
 
 type Game struct {
-	TiledMap     *common.TileMap
+	TiledMap     *tiled.Map
 	FloorImg     *ebiten.Image
 	Sprite       *entities.Sprite
 	Camera       *entities.Camera
@@ -111,12 +114,14 @@ func (g *Game) Update() error {
 			//  ->
 			g.Sprite.X += jumpSpeed
 		}
+		// 碰撞检测
+		g.checkCollision()
 	}
 	if g.Sprite.JumpState != 0 {
 		g.Sprite.Y += gravity //模拟重力
+		// 碰撞检测
+		g.checkCollision()
 	}
-	// 碰撞检测
-	g.checkCollision()
 	g.Camera.FollowTarget(g.Sprite.X, g.Sprite.Y, float64(g.screenWidth), float64(g.screenHeight))
 	// 约束相机位置
 	// 跟踪角色
@@ -131,48 +136,57 @@ func (g *Game) Update() error {
 func (g *Game) checkCollision() {
 	// 获取角色的边界框
 	spriteRect := image.Rect(int(g.Sprite.X), int(g.Sprite.Y), int(g.Sprite.X)+16, int(g.Sprite.Y)+16)
+	fmt.Println("角色位置:", spriteRect)
+	// 计算玩家周围需要检测的瓦片范围
+	// startX := int(g.Sprite.X)/tileSize - 1
+	// startY := int(g.Sprite.Y)/tileSize - 1
+	// endX := startX + 3 // 检测3个瓦片宽度
+	// endY := startY + 3 // 检测3个瓦片高度
 
-	// 遍历地图的每个瓦片
-	for _, layer := range g.TiledMap.Layers {
-		for y := 0; y < g.TiledMap.Height; y++ {
-			for x := 0; x < g.TiledMap.Width; x++ {
-				index := y*g.TiledMap.Width + x
-				id := layer.Data[index]
-				if id == 0 {
-					continue
-				}
+	// for _, layer := range g.TiledMap.Layers {
+	// 	for y := startY; y < endY; y++ {
+	// 		for x := startX; x < endX; x++ {
+	// 			if x <= 0 || y <= 0 || x >= g.TiledMap.Width || y >= g.TiledMap.Height {
+	// 				continue
+	// 			}
 
-				// 获取瓦片的边界框
-				tileRect := image.Rect(x*tileSize, y*tileSize, (x+1)*tileSize, (y+1)*tileSize)
+	// 			index := y*layer.Width + x
+	// 			id := layer.Data[index]
+	// 			if id == 0 {
+	// 				continue
+	// 			}
 
-				// 检测角色与瓦片是否相交
-				if spriteRect.Overlaps(tileRect) {
-					// 处理碰撞
-					if spriteRect.Min.Y < tileRect.Max.Y && spriteRect.Max.Y > tileRect.Min.Y {
-						if g.Sprite.VX < 0 {
-							// 左侧碰撞
-							g.Sprite.X = float64(tileRect.Max.X)
-						} else if g.Sprite.VX > 0 {
-							// 右侧碰撞
-							g.Sprite.X = float64(tileRect.Min.X) - 16
-						}
-					}
-					if spriteRect.Min.X < tileRect.Max.X && spriteRect.Max.X > tileRect.Min.X {
-						if g.Sprite.Y < tileRect.Max.Y && g.Sprite.Y > tileRect.Min.Y {
-							// 下方碰撞（地面）
-							g.Sprite.Y = float64(tileRect.Max.Y)
-							g.Sprite.JumpState = 0
-							g.Sprite.OnGround = true
-						} else if g.Sprite.Y+16 > tileRect.Min.Y && g.Sprite.Y+16 < tileRect.Max.Y {
-							// 上方碰撞（头部）
-							g.Sprite.Y = float64(tileRect.Min.Y) - 16
-							g.Sprite.JumpState = 0
-						}
-					}
-				}
-			}
-		}
-	}
+	// 			// 获取瓦片的边界框
+	// 			tileRect := image.Rect(x*tileSize, y*tileSize, (x+1)*tileSize, (y+1)*tileSize)
+
+	// 			// 检测角色与瓦片是否相交
+	// 			if spriteRect.Overlaps(tileRect) {
+	// 				// 处理碰撞
+	// 				if spriteRect.Min.Y < tileRect.Max.Y && spriteRect.Max.Y > tileRect.Min.Y {
+	// 					if g.Sprite.VX < 0 {
+	// 						// 左侧碰撞
+	// 						g.Sprite.X = float64(tileRect.Max.X)
+	// 					} else if g.Sprite.VX > 0 {
+	// 						// 右侧碰撞
+	// 						g.Sprite.X = float64(tileRect.Min.X) - 16
+	// 					}
+	// 				}
+	// 				if spriteRect.Min.X < tileRect.Max.X && spriteRect.Max.X > tileRect.Min.X {
+	// 					if g.Sprite.Y < float64(tileRect.Max.Y) && g.Sprite.Y > float64(tileRect.Min.Y) {
+	// 						// 下方碰撞（地面）
+	// 						g.Sprite.Y = float64(tileRect.Max.Y)
+	// 						g.Sprite.JumpState = 0
+
+	// 					} else if g.Sprite.Y+16 > float64(tileRect.Min.Y) && g.Sprite.Y+16 < float64(tileRect.Max.Y) {
+	// 						// 上方碰撞（头部）
+	// 						g.Sprite.Y = float64(tileRect.Min.Y) - 16
+	// 						g.Sprite.JumpState = 0
+	// 					}
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }
 }
 
 // Draw draws the game screen.
@@ -186,30 +200,37 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// 计算屏幕可见区域的瓦片范围
 	startX := int(g.Camera.X) / tileSize
 	startY := int(g.Camera.Y) / tileSize
-	endX := startX + g.screenWidth/tileSize + 1
-	endY := startY + g.screenHeight/tileSize + 1
+	endX := startX + g.screenWidth/tileSize
+	endY := startY + g.screenHeight/tileSize
 
 	// 计算缩放比例
 	scaleX := float64(g.screenWidth) / float64(g.TiledMap.Width*tileSize)
 	scaleY := float64(g.screenHeight) / float64(g.TiledMap.Height*tileSize)
 	scale := math.Min(scaleX, scaleY)
 	opts.GeoM.Scale(scale, scale)
-
+	fmt.Println("endx endy", endX, endY)
+	// 渲染地图
 	for _, layer := range g.TiledMap.Layers {
 		for y := startY; y < endY; y++ {
 			for x := startX; x < endX; x++ {
-				index := y*layer.Width + x
-				if index >= len(layer.Data) {
-					continue
-				}
-				id := layer.Data[index]
-				if id == 0 {
+				if x < 0 || y < 0 || x > g.TiledMap.Width || y > g.TiledMap.Height {
+					fmt.Println("x y w h", x, y, g.TiledMap.Width, g.TiledMap.Height)
 					continue
 				}
 
-				srcX := ((id-1)%tileXCount)*tileSize + ((id-1)%tileXCount)*xSpacing
-				srcY := ((id-1)/tileXCount)*tileSize + ((id-1)/tileXCount)*ySpacing
-
+				index := y*g.TiledMap.Width + x
+				if index >= len(layer.Tiles) {
+					fmt.Println("index w x limit", index, g.TiledMap.Width, x, len(layer.Tiles))
+					continue
+				}
+				tile := layer.Tiles[index]
+				if tile == nil {
+					fmt.Println("tile id ", tile.ID, index)
+					continue
+				}
+				// 计算瓦片在图集中的位置
+				srcX := (int(tile.ID) % tileXCount) * (tileSize + xSpacing)
+				srcY := (int(tile.ID) / tileXCount) * (tileSize + ySpacing)
 				opts.GeoM.Translate(float64(x*tileSize)-g.Camera.X, float64(y*tileSize)-g.Camera.Y)
 				screen.DrawImage(
 					g.FloorImg.SubImage(
@@ -221,8 +242,17 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			}
 		}
 	}
-	opts.GeoM.Translate(g.Sprite.X-g.Camera.X, g.Sprite.Y-g.Camera.Y)
 
+	// 计算角色的边界框
+	spriteRect := image.Rect(int(g.Sprite.X), int(g.Sprite.Y), int(g.Sprite.X)+16, int(g.Sprite.Y)+16)
+	greenColor := color.RGBA{0, 255, 0, 255}
+	// 绘制角色边界框
+	vector.DrawFilledRect(screen,
+		float32(float64(spriteRect.Min.X)-g.Camera.X), float32(float64(spriteRect.Min.Y)-g.Camera.Y),
+		float32(float64(spriteRect.Dx())), float32(float64(spriteRect.Dy())), greenColor, true)
+	opts.GeoM.Reset()
+
+	opts.GeoM.Translate(g.Sprite.X-g.Camera.X, g.Sprite.Y-g.Camera.Y)
 	screen.DrawImage(
 		g.Sprite.Img.SubImage(
 			image.Rect(0, 0, 16, 16),
@@ -230,6 +260,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		&opts,
 	)
 	opts.GeoM.Reset()
+
+	// Display FPS.
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("FPS: %0.2f", ebiten.ActualFPS()))
 }
 
 // Layout takes the outside size (e.g., the window size) and returns the (logical) screen size.
