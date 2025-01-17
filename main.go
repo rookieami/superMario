@@ -1,6 +1,7 @@
 package main
 
 import (
+	"SuperMarioBros/common"
 	"SuperMarioBros/entities"
 	"fmt"
 	"image"
@@ -12,7 +13,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
-	"github.com/lafriks/go-tiled"
 )
 
 const (
@@ -24,15 +24,14 @@ const (
 var g *Game
 
 func init() {
-	gameMap, err := tiled.LoadFile("resource/map/word1.tmx")
-	if err != nil {
-		log.Fatal(err)
-	}
 	floorImg, _, err := ebitenutil.NewImageFromFile("resource/tileset/SMB-Tiles.png")
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	mapJson, err := common.LoadConfig("resource/map/word1.tmj")
+	if err != nil {
+		log.Fatal(err)
+	}
 	spriteImg, _, err := ebitenutil.NewImageFromFile("resource/img/ninja.png")
 	if err != nil {
 		log.Fatal(err)
@@ -41,7 +40,7 @@ func init() {
 	g.screenWidth = 320
 	g.screenHeight = 160
 	g.FloorImg = floorImg
-	g.TiledMap = gameMap
+	g.TiledMap = mapJson
 	g.Sprite = &entities.Sprite{
 		Img:       spriteImg,
 		X:         16,
@@ -60,7 +59,7 @@ func init() {
 }
 
 type Game struct {
-	TiledMap     *tiled.Map
+	TiledMap     *common.TileMap
 	FloorImg     *ebiten.Image
 	Sprite       *entities.Sprite
 	Camera       *entities.Camera
@@ -138,55 +137,83 @@ func (g *Game) checkCollision() {
 	spriteRect := image.Rect(int(g.Sprite.X), int(g.Sprite.Y), int(g.Sprite.X)+16, int(g.Sprite.Y)+16)
 	fmt.Println("角色位置:", spriteRect)
 	// 计算玩家周围需要检测的瓦片范围
-	// startX := int(g.Sprite.X)/tileSize - 1
-	// startY := int(g.Sprite.Y)/tileSize - 1
-	// endX := startX + 3 // 检测3个瓦片宽度
-	// endY := startY + 3 // 检测3个瓦片高度
+	startX := int(g.Sprite.X)/tileSize - 1
+	startY := int(g.Sprite.Y)/tileSize - 1
+	endX := startX + 3 // 检测右侧
+	endY := startY + 3 // 检测下方
+	ids := make([]int, 0, 4)
+	ids = append(ids, startY*g.TiledMap.Width+startX
+		startY*g.TiledMap.Width+startX+2,
+	)
+	for _, layer := range g.TiledMap.Layers {
+		for y := startY; y < endY; y++ {
+			for x := startX; x < endX; x++ {
+				if x < 0 || y < 0 || x >= g.TiledMap.Width || y >= g.TiledMap.Height {
+					continue
+				}
 
-	// for _, layer := range g.TiledMap.Layers {
-	// 	for y := startY; y < endY; y++ {
-	// 		for x := startX; x < endX; x++ {
-	// 			if x <= 0 || y <= 0 || x >= g.TiledMap.Width || y >= g.TiledMap.Height {
-	// 				continue
-	// 			}
+				index := y*g.TiledMap.Width + x
+				tileIndex := layer.Data[index]
+				tile := g.TiledMap.Tiles[tileIndex]
+				if tile == nil {
+					fmt.Println("tile id ", tileIndex)
+					continue
+				}
+				// 16,96 32,112
+				// 0,80  16,96 左上
+				// 16,80 32,96 头顶
+				// 16,96 32,112
 
-	// 			index := y*layer.Width + x
-	// 			id := layer.Data[index]
-	// 			if id == 0 {
-	// 				continue
-	// 			}
+				// 获取瓦片的边界框
+				tileRect := image.Rect(x*tileSize, y*tileSize, (x+1)*tileSize, (y+1)*tileSize)
 
-	// 			// 获取瓦片的边界框
-	// 			tileRect := image.Rect(x*tileSize, y*tileSize, (x+1)*tileSize, (y+1)*tileSize)
+				// 检测角色与瓦片是否相交
+				if spriteRect.Overlaps(tileRect) {
+					// 处理碰撞
+					if spriteRect.Min.Y < tileRect.Max.Y && spriteRect.Max.Y > tileRect.Min.Y {
+						if g.Sprite.X < 0 {
+							// 左侧碰撞
+							if !tile.GetPropertyBool("CanPassed") {
+								g.Sprite.X = float64(tileRect.Max.X)
+							}
+						} else if g.Sprite.X > 0 {
+							// 右侧碰撞
+							if !tile.GetPropertyBool("CanPassed") {
+								g.Sprite.X = float64(tileRect.Min.X) - 16
+							}
 
-	// 			// 检测角色与瓦片是否相交
-	// 			if spriteRect.Overlaps(tileRect) {
-	// 				// 处理碰撞
-	// 				if spriteRect.Min.Y < tileRect.Max.Y && spriteRect.Max.Y > tileRect.Min.Y {
-	// 					if g.Sprite.VX < 0 {
-	// 						// 左侧碰撞
-	// 						g.Sprite.X = float64(tileRect.Max.X)
-	// 					} else if g.Sprite.VX > 0 {
-	// 						// 右侧碰撞
-	// 						g.Sprite.X = float64(tileRect.Min.X) - 16
-	// 					}
-	// 				}
-	// 				if spriteRect.Min.X < tileRect.Max.X && spriteRect.Max.X > tileRect.Min.X {
-	// 					if g.Sprite.Y < float64(tileRect.Max.Y) && g.Sprite.Y > float64(tileRect.Min.Y) {
-	// 						// 下方碰撞（地面）
-	// 						g.Sprite.Y = float64(tileRect.Max.Y)
-	// 						g.Sprite.JumpState = 0
+						}
+					}
+					// if spriteRect.Min.X < tileRect.Max.X && spriteRect.Max.X > tileRect.Min.X {
+					// 	if g.Sprite.Y < float64(tileRect.Max.Y) && g.Sprite.Y > float64(tileRect.Min.Y) {
+					// 		// 下方碰撞（地面）
+					// 		if !tile..Properties.GetBool("CanPassed") {
+					// 			//地面不可碰
+					// 			if g.Sprite.Y > float64(tileRect.Max.Y) {
+					// 				g.Sprite.Y = float64(tileRect.Max.Y)
+					// 				g.Sprite.JumpState = 0
+					// 			}
 
-	// 					} else if g.Sprite.Y+16 > float64(tileRect.Min.Y) && g.Sprite.Y+16 < float64(tileRect.Max.Y) {
-	// 						// 上方碰撞（头部）
-	// 						g.Sprite.Y = float64(tileRect.Min.Y) - 16
-	// 						g.Sprite.JumpState = 0
-	// 					}
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
+					// 		} else {
+					// 			if g.Sprite.Y >= float64(g.TiledMap.Height-1)*tileSize {
+					// 				//dead
+					// 				g.Sprite.X = 16
+					// 				g.Sprite.Y = 112
+					// 				g.Sprite.VX = 16
+					// 				g.Sprite.JumpState = 0
+					// 			}
+					// 		}
+
+					// 	} else if g.Sprite.Y+16 > float64(tileRect.Min.Y) && g.Sprite.Y+16 < float64(tileRect.Max.Y) {
+					// 		// 上方碰撞（头部）
+					// 		g.Sprite.Y = float64(tileRect.Min.Y) - 16
+					// 		g.Sprite.JumpState = 0
+					// 	}
+					// }
+				}
+			}
+		}
+	}
 }
 
 // Draw draws the game screen.
@@ -219,13 +246,14 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				}
 
 				index := y*g.TiledMap.Width + x
-				if index >= len(layer.Tiles) {
-					fmt.Println("index w x limit", index, g.TiledMap.Width, x, len(layer.Tiles))
+				if index >= len(layer.Data) {
+					fmt.Println("index w x limit", index, g.TiledMap.Width, x, len(layer.Data))
 					continue
 				}
-				tile := layer.Tiles[index]
+				tileIndex := layer.Data[index]
+				tile := g.TiledMap.Tiles[tileIndex-1]
 				if tile == nil {
-					fmt.Println("tile id ", tile.ID, index)
+					fmt.Println("tile id ", tileIndex)
 					continue
 				}
 				// 计算瓦片在图集中的位置

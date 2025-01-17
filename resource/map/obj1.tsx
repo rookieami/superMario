@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.11" tiledversion="1.11.1" name="obj1" tilewidth="16" tileheight="16" spacing="1" tilecount="143" columns="13" fillmode="preserve-aspect-fit">
- <editorsettings>
-  <export target="obj1.tsx" format="tsx"/>
- </editorsettings>
+<tileset version="1.11" tiledversion="1.11.1" name="obj1" tilewidth="16" tileheight="16" spacing="1" tilecount="143" columns="13" tilerendersize="grid" fillmode="preserve-aspect-fit">
  <properties>
   <property name="CanPassed" type="bool" value="false"/>
  </properties>

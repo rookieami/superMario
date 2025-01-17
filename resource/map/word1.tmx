@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.11" tiledversion="1.11.1" orientation="orthogonal" renderorder="right-down" width="20" height="10" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="1">
+ <editorsettings>
+  <export target="word1.tmj" format="json"/>
+ </editorsettings>
  <tileset firstgid="1" source="obj1.tsx"/>
+ <tileset firstgid="144" name="obj2" tilewidth="16" tileheight="16" spacing="1" tilecount="1800" columns="40">
+  <image source="../tileset/NES - Super Mario Bros - Tileset.png" width="680" height="764"/>
+ </tileset>
  <layer id="1" name="图块层 1" width="20" height="10">
   <data encoding="csv">
 91,91,91,91,91,91,91,91,91,91,91,91,91,91,91,91,91,91,91,91,

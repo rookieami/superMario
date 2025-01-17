@@ -3,8 +3,9 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "obj1.tsx",
+    "activeFile": "word1.tmx",
     "expandedProjectPaths": [
+        "."
     ],
     "fileStates": {
         "": {
@@ -28,23 +29,32 @@
         },
         "obj1.tsx": {
             "scaleInDock": 1,
-            "scaleInEditor": 1
+            "scaleInEditor": 1.5
         },
         "word1.tmj": {
             "scale": 1.3240625,
             "selectedLayer": 0,
             "viewCenter": {
                 "x": 160.86853906065613,
-                "y": 94.40641963653528
+                "y": 93.651168279443
             }
+        },
+        "word1.tmj#obj1": {
+            "scaleInDock": 1
+        },
+        "word1.tmj#obj2": {
+            "scaleInDock": 1
         },
         "word1.tmx": {
             "scale": 1.3240625,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": 160.11328770356383,
-                "y": 80.0566438517819
+                "x": 169.17630398867124,
+                "y": 77.79088978050507
             }
+        },
+        "word1.tmx#obj2": {
+            "scaleInDock": 1
         },
         "word2.tmx": {
             "scale": 1.3240625,
@@ -57,25 +67,26 @@
     },
     "last.exportedFilePath": "E:/work/demo/xgame/SuperMarioBros/resource/map",
     "last.externalTilesetPath": "E:/work/demo/xgame/SuperMarioBros/resource/map",
-    "last.imagePath": "E:/work/demo/xgame/SuperMarioBros/resource/map",
-    "lastUsedTilesetExportFilter": "Tiled 图块集文件 (*.tsx *.xml)",
+    "last.imagePath": "E:/work/demo/xgame/SuperMarioBros/resource/tileset",
+    "lastUsedTilesetExportFilter": "JSON 图块文件 (*.tsj *.json)",
     "map.height": 10,
-    "map.lastUsedExportFilter": "GameMaker room 文件 (*.room.gmx)",
+    "map.lastUsedExportFilter": "JSON map files (*.tmj *.json)",
     "map.lastUsedFormat": "tmx",
     "map.tileHeight": 16,
     "map.tileWidth": 16,
     "map.width": 20,
     "openFiles": [
+        "word1.tmx",
         "obj1.tsx"
     ],
     "project": "word.tiled-project",
     "property.type": "bool",
     "recentFiles": [
+        "word1.tmj",
         "obj1.tsx",
         "word1.tmx",
         "obj1.tsj",
         "word2.tmx",
-        "word1.tmj",
         "m1.tsx",
         "m2.tsx"
     ],
