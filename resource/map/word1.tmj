@@ -92,7 +92,7 @@
                         {
                          "name":"CanPassed",
                          "type":"bool",
-                         "value":false
+                         "value":true
                         }]
                 }, 
                 {
@@ -173,7 +173,7 @@
                         {
                          "name":"CanPassed",
                          "type":"bool",
-                         "value":false
+                         "value":true
                         }]
                 }, 
                 {
@@ -182,7 +182,7 @@
                         {
                          "name":"CanPassed",
                          "type":"bool",
-                         "value":false
+                         "value":true
                         }]
                 }, 
                 {
@@ -191,7 +191,7 @@
                         {
                          "name":"CanPassed",
                          "type":"bool",
-                         "value":false
+                         "value":true
                         }]
                 }, 
                 {
@@ -1344,19 +1344,6 @@
                          "value":false
                         }]
                 }],
-         "tilewidth":16
-        }, 
-        {
-         "columns":40,
-         "firstgid":144,
-         "image":"..\/tileset\/NES - Super Mario Bros - Tileset.png",
-         "imageheight":764,
-         "imagewidth":680,
-         "margin":0,
-         "name":"obj2",
-         "spacing":1,
-         "tilecount":1800,
-         "tileheight":16,
          "tilewidth":16
         }],
  "tilewidth":16,

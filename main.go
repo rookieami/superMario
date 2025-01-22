@@ -113,14 +113,15 @@ func (g *Game) Update() error {
 			//  ->
 			g.Sprite.X += jumpSpeed
 		}
-		// 碰撞检测
-		g.checkCollision()
 	}
 	if g.Sprite.JumpState != 0 {
 		g.Sprite.Y += gravity //模拟重力
-		// 碰撞检测
-		g.checkCollision()
+		if g.Sprite.Y >= float64(g.TiledMap.Height-1)*tileSize {
+			g.dead()
+		}
 	}
+	// 碰撞检测
+	g.checkCollision()
 	g.Camera.FollowTarget(g.Sprite.X, g.Sprite.Y, float64(g.screenWidth), float64(g.screenHeight))
 	// 约束相机位置
 	// 跟踪角色
@@ -133,84 +134,107 @@ func (g *Game) Update() error {
 
 // checkCollision 检测角色与地图之间的碰撞
 func (g *Game) checkCollision() {
-	// 获取角色的边界框
-	spriteRect := image.Rect(int(g.Sprite.X), int(g.Sprite.Y), int(g.Sprite.X)+16, int(g.Sprite.Y)+16)
-	fmt.Println("角色位置:", spriteRect)
 	// 计算玩家周围需要检测的瓦片范围
-	startX := int(g.Sprite.X)/tileSize - 1
-	startY := int(g.Sprite.Y)/tileSize - 1
-	endX := startX + 3 // 检测右侧
-	endY := startY + 3 // 检测下方
-	ids := make([]int, 0, 4)
-	ids = append(ids, startY*g.TiledMap.Width+startX
-		startY*g.TiledMap.Width+startX+2,
-	)
+	startX := int(g.Sprite.X) / tileSize
+	startY := int(g.Sprite.Y) / tileSize
+
+	// 初始化需要检测的瓦片坐标
+	ids := make(map[int]map[int]struct{}, g.TiledMap.Width)
+
+	// 辅助函数：添加瓦片坐标到 ids 中
+	addTile := func(x, y int) {
+		if x >= 0 && x < g.TiledMap.Width && y >= 0 && y < g.TiledMap.Height {
+			if ids[x] == nil {
+				ids[x] = make(map[int]struct{}, g.TiledMap.Height)
+			}
+			ids[x][y] = struct{}{}
+		}
+	}
+	// 特殊情况处理
+	if startX == 0 {
+		addTile(startX, startY+1) // 下方
+		addTile(startX, startY-1) // 上方
+		addTile(startX+1, startY) // 右方
+	} else if startX == g.TiledMap.Width-1 {
+		addTile(startX, startY+1) // 下方
+		addTile(startX, startY-1) // 上方
+		addTile(startX-1, startY) // 左方
+	} else if startY == 0 {
+		addTile(startX, startY+1) // 下方
+		addTile(startX-1, startY) // 左方
+		addTile(startX+1, startY) // 右方
+	} else if startY == g.TiledMap.Height-1 {
+		g.dead()
+		return
+	}
+	// 检测两个地块之间的情况
+	if int(g.Sprite.X)%tileSize != 0 {
+		addTile(startX, startY+1)   // 下方
+		addTile(startX, startY-1)   // 上方
+		addTile(startX+1, startY+1) // 右下方
+		addTile(startX+1, startY-1) // 右上方
+		addTile(startX, startY)
+		addTile(startX+1, startY)
+	} else {
+		addTile(startX-1, startY) // 左
+		addTile(startX+1, startY) // 右
+		addTile(startX, startY+1) // 下
+		addTile(startX, startY-1) // 上
+	}
+	if int(g.Sprite.Y)%tileSize != 0 {
+		addTile(startX, startY)   // 下方
+		addTile(startX, startY-1) // 上方
+	}
+
+	// 检测碰撞
 	for _, layer := range g.TiledMap.Layers {
-		for y := startY; y < endY; y++ {
-			for x := startX; x < endX; x++ {
-				if x < 0 || y < 0 || x >= g.TiledMap.Width || y >= g.TiledMap.Height {
+		for x, ys := range ids {
+			for y := range ys {
+				if _, exist := ys[y]; !exist {
 					continue
 				}
-
 				index := y*g.TiledMap.Width + x
-				tileIndex := layer.Data[index]
-				tile := g.TiledMap.Tiles[tileIndex]
-				if tile == nil {
-					fmt.Println("tile id ", tileIndex)
+				if index >= len(layer.Data) {
 					continue
 				}
-				// 16,96 32,112
-				// 0,80  16,96 左上
-				// 16,80 32,96 头顶
-				// 16,96 32,112
-
+				tileIndex := layer.Data[index]
+				if tileIndex >= len(g.TiledMap.Tiles) || tileIndex == 0 {
+					continue
+				}
+				tile := g.TiledMap.Tiles[tileIndex-1]
+				if tile == nil {
+					continue
+				}
 				// 获取瓦片的边界框
 				tileRect := image.Rect(x*tileSize, y*tileSize, (x+1)*tileSize, (y+1)*tileSize)
-
-				// 检测角色与瓦片是否相交
-				if spriteRect.Overlaps(tileRect) {
-					// 处理碰撞
-					if spriteRect.Min.Y < tileRect.Max.Y && spriteRect.Max.Y > tileRect.Min.Y {
-						if g.Sprite.X < 0 {
-							// 左侧碰撞
-							if !tile.GetPropertyBool("CanPassed") {
-								g.Sprite.X = float64(tileRect.Max.X)
-							}
-						} else if g.Sprite.X > 0 {
-							// 右侧碰撞
-							if !tile.GetPropertyBool("CanPassed") {
-								g.Sprite.X = float64(tileRect.Min.X) - 16
-							}
-
+				if g.Sprite.Y+tileSize >= float64(tileRect.Min.Y) && g.Sprite.Y < float64(tileRect.Min.Y) {
+					// 下方碰撞
+					if !tile.GetPropertyBool("CanPassed") {
+						g.Sprite.Y = float64(tileRect.Min.Y) - 16
+						g.Sprite.JumpState = 0
+						return
+					} else {
+						if g.Sprite.JumpState == 0 {
+							g.Sprite.JumpState = 1
+							return
 						}
 					}
-					// if spriteRect.Min.X < tileRect.Max.X && spriteRect.Max.X > tileRect.Min.X {
-					// 	if g.Sprite.Y < float64(tileRect.Max.Y) && g.Sprite.Y > float64(tileRect.Min.Y) {
-					// 		// 下方碰撞（地面）
-					// 		if !tile..Properties.GetBool("CanPassed") {
-					// 			//地面不可碰
-					// 			if g.Sprite.Y > float64(tileRect.Max.Y) {
-					// 				g.Sprite.Y = float64(tileRect.Max.Y)
-					// 				g.Sprite.JumpState = 0
-					// 			}
-
-					// 		} else {
-					// 			if g.Sprite.Y >= float64(g.TiledMap.Height-1)*tileSize {
-					// 				//dead
-					// 				g.Sprite.X = 16
-					// 				g.Sprite.Y = 112
-					// 				g.Sprite.VX = 16
-					// 				g.Sprite.JumpState = 0
-					// 			}
-					// 		}
-
-					// 	} else if g.Sprite.Y+16 > float64(tileRect.Min.Y) && g.Sprite.Y+16 < float64(tileRect.Max.Y) {
-					// 		// 上方碰撞（头部）
-					// 		g.Sprite.Y = float64(tileRect.Min.Y) - 16
-					// 		g.Sprite.JumpState = 0
-					// 	}
-					// }
+				} else if g.Sprite.Y <= float64(tileRect.Max.Y) && g.Sprite.Y+tileSize > float64(tileRect.Max.Y) {
+					// 上方碰撞
+					if !tile.GetPropertyBool("CanPassed") {
+						g.Sprite.Y = float64(tileRect.Max.Y)
+					}
+				} else if g.Sprite.Y < float64(tileRect.Max.X) && g.Sprite.X+tileSize > float64(tileRect.Min.X) {
+					//// 左右碰撞
+					//if !tile.GetPropertyBool("CanPassed") {
+					//	if g.Sprite.IsLeft {
+					//		g.Sprite.X = float64(tileRect.Min.X) - 16
+					//	} else {
+					//		g.Sprite.X = float64(tileRect.Max.X)
+					//	}
+					//}
 				}
+
 			}
 		}
 	}
@@ -297,6 +321,14 @@ func (g *Game) Draw(screen *ebiten.Image) {
 // If you don't have to adjust the screen size with the outside size, just return a fixed size.
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return g.screenWidth, g.screenHeight
+
+}
+
+func (g *Game) dead() {
+	g.Sprite.X = 16
+	g.Sprite.Y = 112
+	g.Sprite.VX = 16
+	g.Sprite.JumpState = 0
 
 }
 func main() {
